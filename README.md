@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🎓 University Management System
 
 A comprehensive, full-stack university management system with role-based access control, built with React, Node.js, MongoDB, and Cloudinary.
@@ -330,3 +331,6 @@ For detailed setup instructions:
 Made with ❤️ for educational institutions
 
 **Start building your university management system today!** 🚀
+=======
+# University-Management
+>>>>>>> af57e922844dc7b8d1896d65cf4dfdacfec198ef
