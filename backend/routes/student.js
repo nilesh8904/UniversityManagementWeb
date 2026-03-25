@@ -1,3 +1,5 @@
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
@@ -6,6 +8,7 @@ const Attendance = require('../models/Attendance');
 const Assignment = require('../models/Assignment');
 const Result = require('../models/Result');
 const Material = require('../models/Material');
+const Timetable = require('../models/Timetable');
 
 // All routes are protected and only for students
 router.use(protect);
@@ -35,14 +38,6 @@ router.get('/dashboard', async (req, res) => {
       ? Math.round((presentAttendance / totalAttendance) * 100)
       : 0;
 
-    // Get pending assignments
-    const allAssignments = await Assignment.find({
-      'submissions.student': { $ne: studentId },
-    });
-    const pendingAssignments = allAssignments.filter(
-      (assignment) => new Date(assignment.dueDate) > new Date()
-    ).length;
-
     // Calculate GPA (simplified - average of all results)
     const results = await Result.find({ student: studentId });
     const gpa = results.length > 0
@@ -54,7 +49,6 @@ router.get('/dashboard', async (req, res) => {
       data: {
         enrolledCourses,
         attendancePercentage,
-        pendingAssignments,
         gpa,
       },
     });
@@ -257,6 +251,33 @@ router.get('/results', async (req, res) => {
     res.json({
       success: true,
       data: results,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// @route   GET /api/student/timetable
+// @desc    Get timetable entries for enrolled courses
+// @access  Private (Student)
+router.get('/timetable', async (req, res) => {
+  try {
+    const studentId = req.user._id;
+
+    const studentCourses = await Course.find({ enrolledStudents: studentId }).select('_id');
+    const courseIds = studentCourses.map((course) => course._id);
+
+    const timetable = await Timetable.find({ course: { $in: courseIds } })
+      .populate('course', 'name code')
+      .populate('faculty', 'name email')
+      .sort({ day: 1, startTime: 1 });
+
+    res.json({
+      success: true,
+      data: timetable,
     });
   } catch (error) {
     res.status(500).json({

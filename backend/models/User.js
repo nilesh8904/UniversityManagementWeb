@@ -1,5 +1,6 @@
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -55,21 +56,26 @@ const userSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// ======================
-// 🔥 HASH PASSWORD BEFORE SAVE
-// ======================
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+// Compare password helper - plain text comparison (synchronous)
+userSchema.methods.comparePassword = function (candidatePassword) {
+  if (!candidatePassword || typeof candidatePassword !== 'string') {
+    console.log('❌ Invalid candidate password type');
+    return false;
+  }
 
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
-});
+  const storedPassword = this.password ? this.password.toString().trim() : '';
+  const trimmedCandidate = candidatePassword.toString().trim();
 
-// ======================
-// 🔥 COMPARE PASSWORD METHOD
-// ======================
-userSchema.methods.comparePassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+  console.log(`🔍 Comparing: stored="${storedPassword}" vs candidate="${trimmedCandidate}"`);
+  
+  if (!storedPassword) {
+    console.log('❌ No stored password found');
+    return false;
+  }
+
+  const result = trimmedCandidate === storedPassword;
+  console.log(`${result ? '✅' : '❌'} Password match: ${result}`);
+  return result;
 };
 
 // Indexes

@@ -40,9 +40,9 @@ npm run dev
 
 | Role | Email | Password |
 |------|-------|----------|
-| Manage Everything | `admin@university.edu` | `Admin@123` |
-| Manage College | `collegeadmin@engineering.edu` | `Admin@123` |
-| View Courses | `student@university.edu` | `Student@123` |
+| Manage Everything | `admin@university.edu` | `password123` |
+| Manage College | `james@eng.edu` | `password123` |
+| View Courses | `alice@student.edu` | `password123` |
 
 ---
 

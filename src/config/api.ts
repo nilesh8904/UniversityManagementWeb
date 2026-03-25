@@ -1,6 +1,6 @@
 // Backend API Configuration
 // Change this to your Render backend URL after deployment
-export const API_URL = 'https://university-backend-o33j.onrender.com/api';
+export const API_URL = 'http://localhost:5000';
 
 // Helper function to get auth headers
 export const getAuthHeaders = () => {

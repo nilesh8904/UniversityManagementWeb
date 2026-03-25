@@ -1,3 +1,5 @@
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const mongoose = require('mongoose');
 
 const materialSchema = new mongoose.Schema({
@@ -20,7 +22,7 @@ const materialSchema = new mongoose.Schema({
     ref: 'College',
     required: true,
   },
-  faculty: {
+  uploadedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
@@ -51,7 +53,7 @@ const materialSchema = new mongoose.Schema({
 
 // Index for better query performance
 materialSchema.index({ course: 1 });
-materialSchema.index({ faculty: 1 });
+materialSchema.index({ uploadedBy: 1 });
 materialSchema.index({ college: 1 });
 materialSchema.index({ type: 1 });
 materialSchema.index({ isActive: 1 });

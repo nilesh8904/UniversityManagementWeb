@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Course, Attendance, Assignment, Submission, Result } from '../types';
+import { useState, useEffect } from 'react';
+import { Course, Attendance, Result, Timetable } from '../types';
+import { authService } from '../services/authService';
 
 export default function StudentDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'attendance' | 'assignments' | 'results' | 'materials'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'attendance' | 'results' | 'timetable' | 'materials' | 'profile'>('overview');
   
   const studentId = 'STU001';
   
@@ -20,15 +21,7 @@ export default function StudentDashboard() {
     { id: 'a5', studentId: 'STU001', courseId: 'c2', date: '2024-01-16', status: 'late', markedBy: 'f2' },
   ]);
 
-  const [assignments] = useState<Assignment[]>([
-    { id: 'as1', title: 'Binary Trees Implementation', description: 'Implement various binary tree operations including insertion, deletion, and traversal', courseId: 'c1', facultyId: 'f1', dueDate: '2024-02-01', maxMarks: 100, attachments: ['assignment1.pdf'], createdAt: '2024-01-10' },
-    { id: 'as2', title: 'SQL Queries', description: 'Write complex SQL queries for the given database schema', courseId: 'c2', facultyId: 'f2', dueDate: '2024-02-05', maxMarks: 50, attachments: ['database_schema.pdf'], createdAt: '2024-01-12' },
-    { id: 'as3', title: 'Neural Network Implementation', description: 'Build a simple neural network from scratch', courseId: 'c3', facultyId: 'f1', dueDate: '2024-02-10', maxMarks: 100, attachments: [], createdAt: '2024-01-15' },
-  ]);
-
-  const [submissions, setSubmissions] = useState<Submission[]>([
-    { id: 's1', assignmentId: 'as1', studentId: 'STU001', submittedAt: '2024-01-30', files: ['solution.pdf'], marks: 85, feedback: 'Good work! Minor improvements needed in optimization.', status: 'graded' },
-  ]);
+  const [materials, setMaterials] = useState<any[]>([]);
 
   const [results] = useState<Result[]>([
     { id: 'r1', studentId: 'STU001', courseId: 'c1', examType: 'Midterm', marks: 42, maxMarks: 50, grade: 'A', semester: 3 },
@@ -36,35 +29,65 @@ export default function StudentDashboard() {
     { id: 'r3', studentId: 'STU001', courseId: 'c1', examType: 'Quiz 1', marks: 18, maxMarks: 20, grade: 'A+', semester: 3 },
   ]);
 
-  const [materials] = useState([
-    { id: 'm1', title: 'Data Structures Lecture Notes', courseId: 'c1', type: 'PDF', url: '#', uploadedAt: '2024-01-10' },
-    { id: 'm2', title: 'Database Design Tutorial', courseId: 'c2', type: 'Video', url: '#', uploadedAt: '2024-01-12' },
-    { id: 'm3', title: 'ML Algorithms Cheat Sheet', courseId: 'c3', type: 'PDF', url: '#', uploadedAt: '2024-01-15' },
-  ]);
 
-  const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] = useState<string>('');
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<{ title: string; url: string } | null>(null);
 
-  const handleSubmitAssignment = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && selectedAssignment) {
-      const newSubmission: Submission = {
-        id: `s${submissions.length + 1}`,
-        assignmentId: selectedAssignment,
-        studentId: studentId,
-        submittedAt: new Date().toISOString().split('T')[0],
-        files: [file.name],
-        status: 'submitted'
-      };
-      setSubmissions([...submissions, newSubmission]);
-      setShowSubmitModal(false);
-      setSelectedAssignment('');
-      alert(`Assignment submitted successfully! File: ${file.name} (Uploaded to Cloudinary)`);
-    }
+  const [passwordData, setPasswordData] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+
+  useEffect(() => {
+    const loadMaterials = async () => {
+      try {
+        const fetched = await authService.getStudentMaterials();
+        setMaterials(Array.isArray(fetched) ? fetched : []);
+      } catch (error) {
+        console.error('Unable to load student materials:', error);
+      }
+    };
+
+    const loadTimetable = async () => {
+      try {
+        const fetched = await authService.getStudentTimetable();
+        setTimetable(Array.isArray(fetched) ? fetched : []);
+      } catch (error) {
+        console.error('Unable to load student timetable:', error);
+      }
+    };
+
+    loadMaterials();
+    loadTimetable();
+    const materialTimer = setInterval(loadMaterials, 15000); // refresh every 15 seconds for near-real-time
+    const timetableTimer = setInterval(loadTimetable, 30000); // refresh timetable every 30 seconds
+    return () => {
+      clearInterval(materialTimer);
+      clearInterval(timetableTimer);
+    };
+  }, []);
+
+  const handleViewVideo = (material: { title: string; url: string }) => {
+    setSelectedVideo(material);
+    setShowVideoModal(true);
   };
 
-  const handleDownload = (filename: string) => {
-    alert(`Downloading ${filename} from Cloudinary...`);
+  const handleChangePassword = async () => {
+    if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      alert('Please fill in all password fields');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+
+    try {
+      await authService.changePassword(passwordData.oldPassword, passwordData.newPassword);
+      setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      alert('Password changed successfully');
+    } catch (error: any) {
+      console.error('Unable to change password:', error);
+      alert(error?.message || 'Failed to change password');
+    }
   };
 
   const getAttendancePercentage = (courseId: string) => {
@@ -79,10 +102,6 @@ export default function StudentDashboard() {
     if (studentAttendance.length === 0) return 0;
     const present = studentAttendance.filter(a => a.status === 'present' || a.status === 'late').length;
     return ((present / studentAttendance.length) * 100).toFixed(1);
-  };
-
-  const getSubmissionStatus = (assignmentId: string) => {
-    return submissions.find(s => s.assignmentId === assignmentId && s.studentId === studentId);
   };
 
   const calculateGPA = () => {
@@ -104,7 +123,7 @@ export default function StudentDashboard() {
             </div>
           </div>
           <div className="flex space-x-8 border-b overflow-x-auto">
-            {(['overview', 'courses', 'attendance', 'assignments', 'results', 'materials'] as const).map((tab) => (
+            {(['overview', 'courses', 'attendance', 'results', 'timetable', 'materials', 'profile'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -156,9 +175,9 @@ export default function StudentDashboard() {
               <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Pending Assignments</p>
+                    <p className="text-sm text-gray-600">Available Materials</p>
                     <p className="text-3xl font-bold text-gray-900 mt-2">
-                      {assignments.filter(a => !getSubmissionStatus(a.id)).length}
+                      {materials.length}
                     </p>
                   </div>
                   <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
@@ -186,28 +205,25 @@ export default function StudentDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Deadlines</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Latest Videos</h3>
                 <div className="space-y-3">
-                  {assignments
-                    .filter(a => !getSubmissionStatus(a.id))
-                    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-                    .slice(0, 3)
-                    .map((assignment) => {
-                      const course = courses.find(c => c.id === assignment.courseId);
-                      const daysLeft = Math.ceil((new Date(assignment.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                      return (
-                        <div key={assignment.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                          <div>
-                            <p className="font-medium text-gray-900">{assignment.title}</p>
-                            <p className="text-sm text-gray-600">{course?.name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-orange-600">{daysLeft} days left</p>
-                            <p className="text-xs text-gray-500">{assignment.dueDate}</p>
-                          </div>
+                  {materials.slice(0, 3).map((material) => {
+                    const course = courses.find(c => c.id === (material.course?._id || material.courseId));
+                    return (
+                      <div key={material._id || material.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900">{material.title}</p>
+                          <p className="text-sm text-gray-600">{course?.name || 'General'} • {new Date(material.uploadedAt).toLocaleDateString()}</p>
                         </div>
-                      );
-                    })}
+                        <button
+                          onClick={() => handleViewVideo({ title: material.title, url: material.url })}
+                          className="text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          Watch
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -318,116 +334,6 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {activeTab === 'assignments' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Assignments</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {assignments.map((assignment) => {
-                const course = courses.find(c => c.id === assignment.courseId);
-                const submission = getSubmissionStatus(assignment.id);
-                const isOverdue = new Date(assignment.dueDate) < new Date() && !submission;
-                
-                return (
-                  <div key={assignment.id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                        <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <div className="flex flex-col items-end space-y-1">
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{assignment.maxMarks} marks</span>
-                        {submission && (
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            submission.status === 'graded' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {submission.status}
-                          </span>
-                        )}
-                        {isOverdue && (
-                          <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">Overdue</span>
-                        )}
-                      </div>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{assignment.title}</h3>
-                    <p className="text-sm text-gray-600 mb-3">{assignment.description}</p>
-                    <div className="space-y-2 text-sm text-gray-600 border-t pt-3">
-                      <p><span className="font-medium">Course:</span> {course?.name}</p>
-                      <p><span className="font-medium">Due Date:</span> {assignment.dueDate}</p>
-                      {assignment.attachments.length > 0 && (
-                        <div>
-                          <span className="font-medium">Attachments:</span>
-                          {assignment.attachments.map((file, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => handleDownload(file)}
-                              className="ml-2 text-blue-600 hover:text-blue-800 underline"
-                            >
-                              {file}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {submission && (
-                        <div className="pt-2 border-t mt-2">
-                          <p><span className="font-medium">Submitted:</span> {submission.submittedAt}</p>
-                          {submission.marks !== undefined && (
-                            <>
-                              <p><span className="font-medium">Marks:</span> {submission.marks}/{assignment.maxMarks}</p>
-                              <p><span className="font-medium">Feedback:</span> {submission.feedback}</p>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {!submission && (
-                      <button
-                        onClick={() => {
-                          setSelectedAssignment(assignment.id);
-                          setShowSubmitModal(true);
-                        }}
-                        className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Submit Assignment
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {showSubmitModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white rounded-xl p-6 max-w-md w-full">
-                  <h3 className="text-xl font-semibold mb-4">Submit Assignment</h3>
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-600">Upload your assignment file (PDF, DOC, DOCX, ZIP)</p>
-                    <input
-                      type="file"
-                      onChange={handleSubmitAssignment}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      accept=".pdf,.doc,.docx,.zip"
-                    />
-                    <p className="text-xs text-gray-500">Files will be uploaded to Cloudinary for secure storage</p>
-                  </div>
-                  <div className="flex space-x-3 mt-6">
-                    <button
-                      onClick={() => {
-                        setShowSubmitModal(false);
-                        setSelectedAssignment('');
-                      }}
-                      className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {activeTab === 'results' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -479,9 +385,61 @@ export default function StudentDashboard() {
           </div>
         )}
 
+        {activeTab === 'timetable' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-gray-900">My Timetable</h2>
+            
+            {timetable.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+                <svg className="h-12 w-12 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-gray-600">No timetable entries available</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Course</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Faculty</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {timetable.map((entry) => (
+                      <tr key={entry._id || entry.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {entry.course?.name || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {entry.faculty?.name || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {entry.day || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {entry.startTime} - {entry.endTime}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                            {entry.room || 'N/A'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'materials' && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Course Materials</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Course Videos</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {materials.map((material) => {
@@ -489,12 +447,13 @@ export default function StudentDashboard() {
                 return (
                   <div key={material.id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
                     <div className="flex items-start justify-between mb-4">
-                      <div className="h-12 w-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                        <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
+                        <svg className="h-6 w-6 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                          <circle cx="12" cy="13" r="4"></circle>
                         </svg>
                       </div>
-                      <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">{material.type}</span>
+                      <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">Video</span>
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">{material.title}</h3>
                     <div className="space-y-2 text-sm text-gray-600">
@@ -502,17 +461,84 @@ export default function StudentDashboard() {
                       <p><span className="font-medium">Uploaded:</span> {material.uploadedAt}</p>
                     </div>
                     <button
-                      onClick={() => handleDownload(material.title)}
-                      className="w-full mt-4 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center space-x-2"
+                      onClick={() => handleViewVideo({ title: material.title, url: material.url })}
+                      className="w-full mt-4 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
                     >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"></path>
                       </svg>
-                      <span>Download</span>
+                      <span>View Video</span>
                     </button>
                   </div>
                 );
               })}
+            </div>
+
+            {showVideoModal && selectedVideo && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-xl p-6 max-w-2xl w-full">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-semibold text-gray-900">{selectedVideo.title}</h3>
+                    <button
+                      onClick={() => setShowVideoModal(false)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="bg-black rounded-lg overflow-hidden">
+                    <video
+                      key={selectedVideo.url}
+                      controls
+                      className="w-full h-auto max-h-96"
+                      src={selectedVideo.url}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-4 text-center">Video from Cloudinary</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-gray-900">Profile Settings</h2>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 max-w-md">
+              <h3 className="text-lg font-semibold mb-4">Change Password</h3>
+              <div className="space-y-4">
+                <input
+                  type="password"
+                  placeholder="Current Password"
+                  value={passwordData.oldPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="password"
+                  placeholder="New Password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm New Password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleChangePassword}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Change Password
+                </button>
+              </div>
             </div>
           </div>
         )}

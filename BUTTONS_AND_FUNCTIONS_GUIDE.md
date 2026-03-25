@@ -37,9 +37,9 @@ After running `npm run seed`, use these to login:
 
 | Role | Email | Password |
 |------|-------|----------|
-| **University Admin** | `admin@university.edu` | `Admin@123` |
-| **College Admin** | `collegeadmin@engineering.edu` | `Admin@123` |
-| **Student** | `student@university.edu` | `Student@123` |
+| **University Admin** | `admin@university.edu` | `password123` |
+| **College Admin** | `james@eng.edu` | `password123` |
+| **Student** | `alice@student.edu` | `password123` |
 
 ---
 
@@ -475,7 +475,7 @@ fetch('http://localhost:5000/api/auth/login', {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     email: 'admin@university.edu',
-    password: 'Admin@123'
+    password: 'password123'
   })
 })
 .then(r => r.json())

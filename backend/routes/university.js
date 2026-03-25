@@ -1,3 +1,5 @@
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
@@ -121,6 +123,46 @@ router.delete('/colleges/:id', async (req, res) => {
     res.json({
       success: true,
       message: 'College deleted successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// @route   POST /api/university/college-admins
+// @desc    Add a new college admin
+// @access  Private (University Admin)
+router.post('/college-admins', async (req, res) => {
+  try {
+    const { name, email, collegeId, facultyInfo } = req.body;
+
+    if (!name || !email || !collegeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'name, email and collegeId are required',
+      });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Email already in use' });
+    }
+
+    const collegeAdmin = await User.create({
+      name,
+      email,
+      password: 'password123',
+      role: 'college_admin',
+      collegeId,
+      facultyInfo,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: collegeAdmin,
     });
   } catch (error) {
     res.status(500).json({
@@ -300,6 +342,57 @@ router.get('/analytics', async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+});
+
+// @route   GET /api/university/college-admins
+// @desc    Get college admins across all colleges
+// @access  Private (University Admin)
+router.get('/college-admins', async (req, res) => {
+  try {
+    const collegeAdmins = await User.find({ role: 'college_admin' }).select('-password').sort({ createdAt: -1 });
+    res.json({ success: true, data: collegeAdmins });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/university/college-admins
+// @desc    Create a new college admin (only university admins)
+// @access  Private (University Admin)
+router.post('/college-admins', async (req, res) => {
+  try {
+    const { name, email, password, collegeId, facultyInfo } = req.body;
+
+    if (!name || !email || !password || !collegeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'name, email, password and collegeId are required',
+      });
+    }
+
+    const college = await College.findById(collegeId);
+    if (!college) {
+      return res.status(404).json({ success: false, message: 'College not found' });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Email already in use' });
+    }
+
+    const collegeAdmin = await User.create({
+      name,
+      email,
+      password,
+      role: 'college_admin',
+      collegeId,
+      facultyInfo,
+    });
+
+    res.status(201).json({ success: true, data: collegeAdmin });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

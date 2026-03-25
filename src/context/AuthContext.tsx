@@ -42,13 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
+      console.log('🔐 AuthContext: Calling authService.login');
       const userData = await authService.login({ email, password });
+      console.log('🔐 AuthContext: Received userData:', userData);
 
       // Validate response
       if (!userData || !userData.role) {
+        console.log('🔐 AuthContext: Invalid user data - no userData or no role');
         throw new Error('Invalid user data');
       }
 
+      console.log('🔐 AuthContext: Setting user and localStorage');
       setUser(userData);
 
       // ✅ Store in localStorage
@@ -60,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         err instanceof Error
           ? err.message
           : 'Login failed. Please check your credentials.';
+      console.log('🔐 AuthContext: Login failed with error:', errorMessage);
       setError(errorMessage);
       return false;
     } finally {

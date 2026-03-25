@@ -1,5 +1,8 @@
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { protect } = require('../middleware/auth');
 const { upload } = require('../config/cloudinary');
 const Material = require('../models/Material');
@@ -67,18 +70,29 @@ router.post('/multiple', protect, upload.array('files', 10), async (req, res) =>
 });
 
 // @route   POST /api/upload/material
-// @desc    Upload course material
+// @desc    Upload course material (file or Cloudinary URL)
 // @access  Private (Faculty/Admin)
 router.post('/material', protect, upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
+    const { title, description, courseId, url, type } = req.body;
+
+    if (!title || !courseId || (!req.file && !url)) {
       return res.status(400).json({
         success: false,
-        message: 'No file uploaded',
+        message: 'title, courseId, and either file or url are required',
       });
     }
 
-    const { title, description, courseId } = req.body;
+    // Validate courseId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid courseId: "${courseId}". Must be a valid MongoDB ObjectId.`,
+      });
+    }
+
+    const materialUrl = req.file ? req.file.path : url;
+    const materialType = type || 'video';
 
     const material = await Material.create({
       title,
@@ -86,11 +100,10 @@ router.post('/material', protect, upload.single('file'), async (req, res) => {
       course: courseId,
       college: req.user.collegeId,
       uploadedBy: req.user._id,
-      fileUrl: req.file.path,
-      fileName: req.file.originalname,
-      fileType: req.file.mimetype,
-      fileSize: req.file.size,
-      cloudinaryId: req.file.filename,
+      type: materialType,
+      url: materialUrl,
+      fileSize: req.file ? req.file.size : undefined,
+      uploadedAt: new Date(),
     });
 
     await material.populate('course', 'name code');

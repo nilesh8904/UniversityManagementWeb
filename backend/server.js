@@ -1,5 +1,7 @@
 require('dotenv').config();
-
+console.log("MONGODB_URI:", process.env.MONGODB_URI);
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const express = require('express');
 const mongoose = require('mongoose');
 
@@ -14,11 +16,13 @@ app.use(cors({
     // allow requests without origin (Postman etc.)
     if (!origin) return callback(null, true);
 
-    // allow localhost + all vercel domains
-    if (
-      origin.includes("localhost") ||
-      origin.includes("vercel.app")
-    ) {
+    // allow all localhost origins (any port)
+    if (origin.startsWith('http://localhost:')) {
+      return callback(null, true);
+    }
+
+    // allow all vercel domains
+    if (origin.includes("vercel.app")) {
       return callback(null, true);
     }
 
@@ -56,11 +60,11 @@ const connectMongoDB = async () => {
 connectMongoDB();
 
 // ================= ROUTES =================
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/university', require('./routes/university'));
-app.use('/api/college', require('./routes/college'));
-app.use('/api/student', require('./routes/student'));
-app.use('/api/upload', require('./routes/upload'));
+app.use('/auth', require('./routes/auth'));
+app.use('/university', require('./routes/university'));
+app.use('/college', require('./routes/college'));
+app.use('/student', require('./routes/student'));
+app.use('/upload', require('./routes/upload'));
 
 // ================= HEALTH CHECK =================
 app.get('/health', (req, res) => {

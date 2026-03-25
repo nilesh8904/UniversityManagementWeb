@@ -1,11 +1,15 @@
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { protect, authorize } = require('../middleware/auth');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const Timetable = require('../models/Timetable');
 const Attendance = require('../models/Attendance');
 const Assignment = require('../models/Assignment');
+const Material = require('../models/Material');
 
 // All routes are protected and only for college admins
 router.use(protect);
@@ -148,6 +152,72 @@ router.delete('/courses/:id', async (req, res) => {
   }
 });
 
+// MATERIALS
+// @route   GET /api/college/materials
+// @desc    Get all materials for the college
+// @access  Private (College Admin)
+router.get('/materials', async (req, res) => {
+  try {
+    const collegeId = req.user.collegeId;
+    const materials = await Material.find({ college: collegeId })
+      .populate('course', 'name code')
+      .populate('uploadedBy', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: materials,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// @route   POST /api/college/materials
+// @desc    Add new material by Cloudinary link or file
+// @access  Private (College Admin)
+router.post('/materials', async (req, res) => {
+  try {
+    const { title, description, courseId, url, type } = req.body;
+
+    if (!title || !courseId || !url) {
+      return res.status(400).json({
+        success: false,
+        message: 'title, courseId, url are required',
+      });
+    }
+
+    // Validate courseId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid courseId: "${courseId}". Must be a valid MongoDB ObjectId.`,
+      });
+    }
+
+    const material = await Material.create({
+      title,
+      description,
+      course: courseId,
+      college: req.user.collegeId,
+      uploadedBy: req.user._id,
+      type: type || 'video',
+      url,
+      uploadedAt: new Date(),
+    });
+
+    await material.populate('course', 'name code');
+    await material.populate('uploadedBy', 'name email');
+
+    res.status(201).json({ success: true, data: material });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // FACULTY
 // @route   GET /api/college/faculty
 // @desc    Get all faculty for a college
@@ -178,13 +248,28 @@ router.get('/faculty', async (req, res) => {
 router.post('/faculty', async (req, res) => {
   try {
     const collegeId = req.user.collegeId;
-    const facultyData = {
-      ...req.body,
-      collegeId: collegeId,
-      role: 'college_admin',
-    };
+    const { name, email, facultyInfo } = req.body;
 
-    const faculty = await User.create(facultyData);
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'name and email are required',
+      });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Email already in use' });
+    }
+
+    const faculty = await User.create({
+      name,
+      email,
+      password: 'password123',
+      role: 'college_admin',
+      collegeId,
+      facultyInfo,
+    });
 
     res.status(201).json({
       success: true,
@@ -195,6 +280,54 @@ router.post('/faculty', async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+});
+
+// @route   GET /api/college/students
+// @desc    Get students for college
+// @access  Private (College Admin, University Admin)
+router.get('/students', async (req, res) => {
+  try {
+    const collegeId = req.user.collegeId;
+    const students = await User.find({ role: 'student', collegeId }).select('-password').sort({ createdAt: -1 });
+    res.json({ success: true, data: students });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/college/students
+// @desc    Add a new student to the college
+// @access  Private (College Admin, University Admin)
+router.post('/students', async (req, res) => {
+  try {
+    const collegeId = req.user.collegeId;
+    const { name, email, studentInfo } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'name and email are required',
+      });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Email already in use' });
+    }
+
+    const student = await User.create({
+      name,
+      email,
+      password: 'password123',
+      role: 'student',
+      collegeId,
+      studentInfo,
+    });
+
+    res.status(201).json({ success: true, data: student });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

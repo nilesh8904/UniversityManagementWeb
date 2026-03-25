@@ -1,3 +1,5 @@
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 

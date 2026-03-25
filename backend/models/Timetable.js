@@ -1,3 +1,5 @@
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const mongoose = require('mongoose');
 
 const timetableSchema = new mongoose.Schema({
@@ -62,8 +64,7 @@ timetableSchema.index({ faculty: 1 });
 timetableSchema.index({ college: 1 });
 timetableSchema.index({ day: 1 });
 timetableSchema.index({ semester: 1 });
-
-// Compound index to prevent scheduling conflicts
-timetableSchema.index({ day: 1, startTime: 1, endTime: 1, room: 1 }, { unique: true });
+// Index for querying by day and time (without unique constraint to allow multiple courses)
+timetableSchema.index({ day: 1, startTime: 1, endTime: 1, room: 1 });
 
 module.exports = mongoose.model('Timetable', timetableSchema);

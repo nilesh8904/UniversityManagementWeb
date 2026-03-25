@@ -1,8 +1,14 @@
-import { useState } from 'react';
-import { Course, Faculty, Timetable, Attendance, Assignment } from '../types';
+import { useState, useEffect } from 'react';
+import { Course, Faculty, Timetable, Attendance, Assignment, User } from '../types';
+import { authService } from '../services/authService';
 
 export default function CollegeAdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'faculty' | 'timetable' | 'attendance' | 'assignments'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'faculty' | 'students' | 'timetable' | 'attendance' | 'materials' | 'profile'>('overview');
+  const [students, setStudents] = useState<User[]>([]);
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [newStudent, setNewStudent] = useState({ name: '', email: '', studentInfo: { rollNumber: '', department: '', semester: 1, year: new Date().getFullYear() } });
+
+  const [passwordData, setPasswordData] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
   
   const [courses, setCourses] = useState<Course[]>([
     { id: 'c1', name: 'Data Structures', code: 'CS201', credits: 4, facultyId: 'f1', facultyName: 'Dr. Alice Johnson', programId: 'p1', collegeId: 'col1', semester: 3 },
@@ -27,35 +33,96 @@ export default function CollegeAdminDashboard() {
     { id: 'a2', studentId: 'STU002', courseId: 'c1', date: '2024-01-15', status: 'absent', markedBy: 'f1' },
   ]);
 
-  const [assignments, setAssignments] = useState<Assignment[]>([
-    { id: 'as1', title: 'Binary Trees Implementation', description: 'Implement various binary tree operations', courseId: 'c1', facultyId: 'f1', dueDate: '2024-02-01', maxMarks: 100, attachments: [], createdAt: '2024-01-10' },
-    { id: 'as2', title: 'SQL Queries', description: 'Write complex SQL queries', courseId: 'c2', facultyId: 'f2', dueDate: '2024-02-05', maxMarks: 50, attachments: [], createdAt: '2024-01-12' },
-  ]);
+  const [materials, setMaterials] = useState<any[]>([]);
 
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [showAddFaculty, setShowAddFaculty] = useState(false);
   const [showAddTimetable, setShowAddTimetable] = useState(false);
-  const [showAddAssignment, setShowAddAssignment] = useState(false);
+  const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [showMarkAttendance, setShowMarkAttendance] = useState(false);
 
   const [newCourse, setNewCourse] = useState({ name: '', code: '', credits: 3, facultyId: '', semester: 1 });
   const [newFaculty, setNewFaculty] = useState({ name: '', email: '', department: '', specialization: '', phone: '' });
   const [newTimetable, setNewTimetable] = useState({ courseId: '', day: 'Monday', startTime: '', endTime: '', room: '', facultyId: '' });
-  const [newAssignment, setNewAssignment] = useState({ title: '', description: '', courseId: '', dueDate: '', maxMarks: 100 });
+  const [newMaterial, setNewMaterial] = useState({ title: '', description: '', courseId: '', url: '' });
   const [newAttendance, setNewAttendance] = useState({ studentId: '', courseId: '', date: '', status: 'present' as const });
 
-  const handleAddCourse = () => {
+  useEffect(() => {
+    async function loadStudents() {
+      try {
+        const data = await authService.getCollegeStudents();
+        setStudents(data || []);
+      } catch (error) {
+        console.error('Unable to fetch students', error);
+      }
+    }
+
+    async function loadCourses() {
+      try {
+        const data = await authService.getCollegeCourses();
+        setCourses(data || []);
+      } catch (error) {
+        console.error('Unable to fetch courses', error);
+      }
+    }
+
+    async function loadMaterials() {
+      try {
+        const data = await authService.getCollegeMaterials();
+        setMaterials(data || []);
+      } catch (error) {
+        console.error('Unable to fetch materials', error);
+      }
+    }
+
+    loadStudents();
+    loadCourses();
+    loadMaterials();
+  }, []);
+
+  const handleAddCourse = async () => {
     if (newCourse.name && newCourse.code && newCourse.facultyId) {
-      const selectedFaculty = faculty.find(f => f.id === newCourse.facultyId);
-      setCourses([...courses, {
-        ...newCourse,
-        id: `c${courses.length + 1}`,
-        facultyName: selectedFaculty?.name || '',
-        programId: 'p1',
-        collegeId: 'col1'
-      }]);
-      setNewCourse({ name: '', code: '', credits: 3, facultyId: '', semester: 1 });
-      setShowAddCourse(false);
+      try {
+        const created = await authService.createCollegeCourse({
+          name: newCourse.name,
+          code: newCourse.code,
+          credits: newCourse.credits,
+          faculty: newCourse.facultyId,
+          semester: newCourse.semester,
+        });
+
+        setCourses([created, ...courses]);
+        setNewCourse({ name: '', code: '', credits: 3, facultyId: '', semester: 1 });
+        setShowAddCourse(false);
+        alert('Course created successfully!');
+      } catch (error: any) {
+        console.error('Unable to create course', error);
+        alert(error?.message || 'Failed to create course');
+      }
+    } else {
+      alert('Please fill in all course fields');
+    }
+  };
+
+  const handleAddMaterial = async () => {
+    if (!newMaterial.title || !newMaterial.courseId || !newMaterial.url) {
+      alert('Please enter material title, course, and Cloudinary URL.');
+      return;
+    }
+
+    try {
+      const created = await authService.createCollegeMaterial({
+        ...newMaterial,
+        type: 'video',
+      });
+
+      setMaterials([created, ...materials]);
+      setNewMaterial({ title: '', description: '', courseId: '', url: '' });
+      setShowAddMaterial(false);
+      alert('Material added successfully!');
+    } catch (error: any) {
+      console.error('Unable to add material', error);
+      alert(error?.message || 'Failed to add material');
     }
   };
 
@@ -67,6 +134,50 @@ export default function CollegeAdminDashboard() {
     }
   };
 
+  const handleAddStudent = async () => {
+    if (!newStudent.name || !newStudent.email) {
+      alert('Please fill in student name and email.');
+      return;
+    }
+
+    try {
+      const created = await authService.createCollegeStudent({
+        name: newStudent.name,
+        email: newStudent.email,
+        studentInfo: newStudent.studentInfo,
+      });
+
+      setStudents([...students, created]);
+      setNewStudent({ name: '', email: '', studentInfo: { rollNumber: '', department: '', semester: 1, year: new Date().getFullYear() } });
+      setShowAddStudent(false);
+      alert('Student created successfully');
+    } catch (error: any) {
+      console.error('Unable to add student:', error);
+      alert(error?.message || 'Failed to create student.');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      alert('Please fill in all password fields');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+
+    try {
+      await authService.changePassword(passwordData.oldPassword, passwordData.newPassword);
+      setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      alert('Password changed successfully');
+    } catch (error: any) {
+      console.error('Unable to change password:', error);
+      alert(error?.message || 'Failed to change password');
+    }
+  };
+
   const handleAddTimetable = () => {
     if (newTimetable.courseId && newTimetable.startTime && newTimetable.endTime) {
       setTimetable([...timetable, { ...newTimetable, id: `t${timetable.length + 1}` }]);
@@ -75,20 +186,6 @@ export default function CollegeAdminDashboard() {
     }
   };
 
-  const handleAddAssignment = () => {
-    if (newAssignment.title && newAssignment.courseId) {
-      const course = courses.find(c => c.id === newAssignment.courseId);
-      setAssignments([...assignments, {
-        ...newAssignment,
-        id: `as${assignments.length + 1}`,
-        facultyId: course?.facultyId || '',
-        attachments: [],
-        createdAt: new Date().toISOString().split('T')[0]
-      }]);
-      setNewAssignment({ title: '', description: '', courseId: '', dueDate: '', maxMarks: 100 });
-      setShowAddAssignment(false);
-    }
-  };
 
   const handleMarkAttendance = () => {
     if (newAttendance.studentId && newAttendance.courseId && newAttendance.date) {
@@ -117,7 +214,7 @@ export default function CollegeAdminDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">College Admin Dashboard</h1>
           </div>
           <div className="flex space-x-8 border-b overflow-x-auto">
-            {(['overview', 'courses', 'faculty', 'timetable', 'attendance', 'assignments'] as const).map((tab) => (
+            {(['overview', 'courses', 'faculty', 'students', 'timetable', 'attendance', 'materials', 'profile'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -169,8 +266,8 @@ export default function CollegeAdminDashboard() {
               <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Assignments</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-2">{assignments.length}</p>
+                    <p className="text-sm text-gray-600">Course Videos</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">{materials.length}</p>
                   </div>
                   <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
                     <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -371,6 +468,98 @@ export default function CollegeAdminDashboard() {
                       Add Faculty
                     </button>
                     <button onClick={() => setShowAddFaculty(false)} className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'students' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-900">Manage Students</h2>
+              <button
+                onClick={() => setShowAddStudent(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Add Student
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {students.map((student) => (
+                <div key={student._id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                  <h3 className="font-semibold text-gray-900">{student.name}</h3>
+                  <p className="text-sm text-gray-600">{student.email}</p>
+                  <p className="text-sm text-gray-600">Semester: {student.studentInfo?.semester || 'N/A'}</p>
+                </div>
+              ))}
+            </div>
+
+            {showAddStudent && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-xl p-6 max-w-md w-full">
+                  <h3 className="text-xl font-semibold mb-4">Add New Student</h3>
+                  <div className="space-y-4">
+                    <input
+                      type="text"
+                      placeholder="Full Name"
+                      value={newStudent.name}
+                      onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={newStudent.email}
+                      onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Roll Number"
+                      value={newStudent.studentInfo.rollNumber}
+                      onChange={(e) => setNewStudent({
+                        ...newStudent,
+                        studentInfo: { ...newStudent.studentInfo, rollNumber: e.target.value },
+                      })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Department"
+                      value={newStudent.studentInfo.department}
+                      onChange={(e) => setNewStudent({
+                        ...newStudent,
+                        studentInfo: { ...newStudent.studentInfo, department: e.target.value },
+                      })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Semester"
+                      value={newStudent.studentInfo.semester}
+                      onChange={(e) => setNewStudent({
+                        ...newStudent,
+                        studentInfo: { ...newStudent.studentInfo, semester: Number(e.target.value) },
+                      })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex space-x-3 mt-6">
+                    <button
+                      onClick={handleAddStudent}
+                      className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                    >
+                      Create
+                    </button>
+                    <button
+                      onClick={() => setShowAddStudent(false)}
+                      className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+                    >
                       Cancel
                     </button>
                   </div>
@@ -589,113 +778,128 @@ export default function CollegeAdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'assignments' && (
+        {activeTab === 'materials' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Assignment Management</h2>
-              <div className="flex space-x-3">
-                <label className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors cursor-pointer">
-                  Upload Material
-                  <input type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.doc,.docx,.jpg,.png" />
-                </label>
-                <button
-                  onClick={() => setShowAddAssignment(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Create Assignment
-                </button>
-              </div>
+              <h2 className="text-xl font-semibold text-gray-900">Course Videos</h2>
+              <button
+                onClick={() => setShowAddMaterial(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Add Material
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {assignments.map((assignment) => {
-                const course = courses.find(c => c.id === assignment.courseId);
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {materials.map((material) => {
+                const course = courses.find(c => c.id === material.course?._id || material.courseId);
                 return (
-                  <div key={assignment.id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{assignment.maxMarks} marks</span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{assignment.title}</h3>
-                    <p className="text-sm text-gray-600 mb-3">{assignment.description}</p>
+                  <div key={material._id || material.id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{material.title}</h3>
+                    <p className="text-sm text-gray-600 mb-3">{material.description}</p>
                     <div className="space-y-2 text-sm text-gray-600 border-t pt-3">
                       <p><span className="font-medium">Course:</span> {course?.name}</p>
-                      <p><span className="font-medium">Due Date:</span> {assignment.dueDate}</p>
-                      <p><span className="font-medium">Created:</span> {assignment.createdAt}</p>
+                      <p><span className="font-medium">Posted:</span> {(new Date(material.uploadedAt)).toLocaleDateString()}</p>
                     </div>
+                    <a
+                      href={material.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-4 inline-flex items-center justify-center w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700"
+                    >
+                      Open Video
+                    </a>
                   </div>
                 );
               })}
             </div>
 
-            {showAddAssignment && (
+            {showAddMaterial && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-xl p-6 max-w-md w-full">
-                  <h3 className="text-xl font-semibold mb-4">Create Assignment</h3>
+                  <h3 className="text-xl font-semibold mb-4">Add Course Video</h3>
                   <div className="space-y-4">
                     <input
                       type="text"
-                      placeholder="Assignment Title"
-                      value={newAssignment.title}
-                      onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })}
+                      placeholder="Video Title"
+                      value={newMaterial.title}
+                      onChange={(e) => setNewMaterial({ ...newMaterial, title: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                     <textarea
-                      placeholder="Description"
-                      value={newAssignment.description}
-                      onChange={(e) => setNewAssignment({ ...newAssignment, description: e.target.value })}
+                      placeholder="Description / Topic"
+                      value={newMaterial.description}
+                      onChange={(e) => setNewMaterial({ ...newMaterial, description: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       rows={3}
                     />
                     <select
-                      value={newAssignment.courseId}
-                      onChange={(e) => setNewAssignment({ ...newAssignment, courseId: e.target.value })}
+                      value={newMaterial.courseId}
+                      onChange={(e) => setNewMaterial({ ...newMaterial, courseId: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select Course</option>
                       {courses.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
+                        <option key={c._id} value={c._id}>{c.name}</option>
                       ))}
                     </select>
                     <input
-                      type="date"
-                      placeholder="Due Date"
-                      value={newAssignment.dueDate}
-                      onChange={(e) => setNewAssignment({ ...newAssignment, dueDate: e.target.value })}
+                      type="text"
+                      placeholder="Cloudinary Video URL"
+                      value={newMaterial.url}
+                      onChange={(e) => setNewMaterial({ ...newMaterial, url: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
-                    <input
-                      type="number"
-                      placeholder="Max Marks"
-                      value={newAssignment.maxMarks}
-                      onChange={(e) => setNewAssignment({ ...newAssignment, maxMarks: parseInt(e.target.value) })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Attach Files (Cloudinary)</label>
-                      <input
-                        type="file"
-                        onChange={handleFileUpload}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        multiple
-                      />
-                    </div>
                   </div>
                   <div className="flex space-x-3 mt-6">
-                    <button onClick={handleAddAssignment} className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-                      Create Assignment
+                    <button onClick={handleAddMaterial} className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                      Save Video
                     </button>
-                    <button onClick={() => setShowAddAssignment(false)} className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300">
+                    <button onClick={() => setShowAddMaterial(false)} className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300">
                       Cancel
                     </button>
                   </div>
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-gray-900">Profile Settings</h2>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 max-w-md">
+              <h3 className="text-lg font-semibold mb-4">Change Password</h3>
+              <div className="space-y-4">
+                <input
+                  type="password"
+                  placeholder="Current Password"
+                  value={passwordData.oldPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="password"
+                  placeholder="New Password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm New Password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleChangePassword}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Change Password
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

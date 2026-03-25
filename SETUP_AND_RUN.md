@@ -98,17 +98,17 @@ After running `npm run seed`, you can login with these test accounts:
 
 ### University Admin
 - **Email:** `admin@university.edu`
-- **Password:** `Admin@123`
+- **Password:** `password123`
 - **Role:** University Admin (manage all colleges)
 
 ### College Admin
-- **Email:** `collegeadmin@engineering.edu`  
-- **Password:** `Admin@123`
+- **Email:** `james@eng.edu`  
+- **Password:** `password123`
 - **Role:** College Admin (manage courses & faculty)
 
 ### Student
-- **Email:** `student@university.edu`
-- **Password:** `Student@123`
+- **Email:** `alice@student.edu`
+- **Password:** `password123`
 - **Role:** Student (view courses, attendance, results)
 
 ---

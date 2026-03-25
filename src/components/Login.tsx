@@ -13,13 +13,18 @@ export default function Login() {
     setError('');
     setIsLoading(true);
     
+    console.log('🔐 Login: Form submitted with email:', email, 'password length:', password.length);
+    
     try {
       const success = await login(email, password);
+      console.log('🔐 Login: Login result:', success);
+      
       if (!success) {
         setError('Invalid credentials. Please check your email and password.');
       }
       // On success, the auth state will update and App.tsx will re-render to show dashboard
     } catch (err) {
+      console.log('🔐 Login: Exception caught:', err);
       setError('Login failed. Please try again.');
     } finally {
       setIsLoading(false);
@@ -131,6 +136,9 @@ export default function Login() {
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-xs text-blue-900">
                 <span className="font-semibold">Note:</span> Your role is determined by your account in the system. Enter your email and password to login with your assigned role.
+              </p>
+              <p className="text-xs text-blue-900 mt-1">
+                Default password for seeded users is <span className="font-bold">password123</span>.
               </p>
             </div>
           </div>

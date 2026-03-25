@@ -22,14 +22,15 @@ export interface User {
 }
 
 export interface College {
-  id: string;
+  _id?: string;
+  id?: string;
   name: string;
   code: string;
   address: string;
   establishedYear: number;
   dean: string;
-  totalStudents: number;
-  totalFaculty: number;
+  totalStudents?: number;
+  totalFaculty?: number;
 }
 
 export interface Program {

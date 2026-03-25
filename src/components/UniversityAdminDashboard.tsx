@@ -1,13 +1,16 @@
-import { useState } from 'react';
-import { College, Program } from '../types';
+import { useState, useEffect } from 'react';
+import { College, Program, User } from '../types';
+import { authService } from '../services/authService';
 
 export default function UniversityAdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'colleges' | 'programs' | 'analytics'>('overview');
-  const [colleges, setColleges] = useState<College[]>([
-    { id: 'col1', name: 'Engineering College', code: 'ENG', address: '123 University Ave', establishedYear: 1995, dean: 'Dr. Robert Wilson', totalStudents: 2500, totalFaculty: 150 },
-    { id: 'col2', name: 'Business School', code: 'BUS', address: '456 Commerce St', establishedYear: 2000, dean: 'Dr. Emily Brown', totalStudents: 1800, totalFaculty: 120 },
-    { id: 'col3', name: 'Arts & Sciences', code: 'ART', address: '789 Liberal Ave', establishedYear: 1990, dean: 'Dr. James Davis', totalStudents: 2200, totalFaculty: 140 },
-  ]);
+  const [activeTab, setActiveTab] = useState<'overview' | 'colleges' | 'programs' | 'analytics' | 'collegeAdmins' | 'profile'>('overview');
+  const [collegeAdmins, setCollegeAdmins] = useState<User[]>([]);
+  const [showAddCollegeAdmin, setShowAddCollegeAdmin] = useState(false);
+  const [newCollegeAdmin, setNewCollegeAdmin] = useState({ name: '', email: '', collegeId: '', facultyInfo: { employeeId: '', department: '', specialization: '', phone: '' } });
+
+  const [passwordData, setPasswordData] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+
+  const [colleges, setColleges] = useState<College[]>([]);
 
   const [programs, setPrograms] = useState<Program[]>([
     { id: 'p1', name: 'Computer Science', code: 'CS', duration: '4 years', degree: 'B.Tech', collegeId: 'col1' },
@@ -20,6 +23,23 @@ export default function UniversityAdminDashboard() {
   const [newCollege, setNewCollege] = useState({ name: '', code: '', address: '', establishedYear: 2024, dean: '' });
   const [newProgram, setNewProgram] = useState({ name: '', code: '', duration: '', degree: '', collegeId: '' });
 
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [adminsData, collegesData] = await Promise.all([
+          authService.getCollegeAdmins(),
+          authService.getColleges(),
+        ]);
+        setCollegeAdmins(adminsData || []);
+        setColleges(collegesData || []);
+      } catch (err) {
+        console.error('Unable to fetch data', err);
+      }
+    }
+
+    loadData();
+  }, []);
+
   const handleAddCollege = () => {
     if (newCollege.name && newCollege.code) {
       setColleges([...colleges, { ...newCollege, id: `col${colleges.length + 1}`, totalStudents: 0, totalFaculty: 0 }]);
@@ -28,11 +48,56 @@ export default function UniversityAdminDashboard() {
     }
   };
 
+  const handleAddCollegeAdmin = async () => {
+    if (!newCollegeAdmin.name || !newCollegeAdmin.email || !newCollegeAdmin.collegeId) {
+      alert('Please provide name, email and college');
+      return;
+    }
+
+    try {
+      const created = await authService.createCollegeAdmin({
+        name: newCollegeAdmin.name,
+        email: newCollegeAdmin.email,
+        collegeId: newCollegeAdmin.collegeId,
+        facultyInfo: newCollegeAdmin.facultyInfo,
+      });
+
+      setCollegeAdmins([...collegeAdmins, created]);
+      setNewCollegeAdmin({ name: '', email: '', collegeId: '', facultyInfo: { employeeId: '', department: '', specialization: '', phone: '' } });
+      setShowAddCollegeAdmin(false);
+      alert('College admin created successfully');
+    } catch (error: any) {
+      console.error('Unable to create college admin:', error);
+      alert(error?.message || 'Failed to create college admin');
+    }
+  };
+
   const handleAddProgram = () => {
     if (newProgram.name && newProgram.code && newProgram.collegeId) {
       setPrograms([...programs, { ...newProgram, id: `p${programs.length + 1}` }]);
       setNewProgram({ name: '', code: '', duration: '', degree: '', collegeId: '' });
       setShowAddProgram(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      alert('Please fill in all password fields');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+
+    try {
+      await authService.changePassword(passwordData.oldPassword, passwordData.newPassword);
+      setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      alert('Password changed successfully');
+    } catch (error: any) {
+      console.error('Unable to change password:', error);
+      alert(error?.message || 'Failed to change password');
     }
   };
 
@@ -47,7 +112,7 @@ export default function UniversityAdminDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">University Admin Dashboard</h1>
           </div>
           <div className="flex space-x-8 border-b">
-            {(['overview', 'colleges', 'programs', 'analytics'] as const).map((tab) => (
+            {(['overview', 'colleges', 'programs', 'analytics', 'collegeAdmins', 'profile'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -129,7 +194,7 @@ export default function UniversityAdminDashboard() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">College Overview</h3>
               <div className="space-y-4">
                 {colleges.map((college) => (
-                  <div key={college.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div key={college._id || college.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
                       <h4 className="font-medium text-gray-900">{college.name}</h4>
                       <p className="text-sm text-gray-600">Dean: {college.dean}</p>
@@ -159,7 +224,7 @@ export default function UniversityAdminDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {colleges.map((college) => (
-                <div key={college.id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <div key={college._id || college.id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
                   <div className="flex items-start justify-between mb-4">
                     <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
                       <span className="text-blue-600 font-bold text-lg">{college.code}</span>
@@ -319,7 +384,7 @@ export default function UniversityAdminDashboard() {
                     >
                       <option value="">Select College</option>
                       {colleges.map((college) => (
-                        <option key={college.id} value={college.id}>{college.name}</option>
+                        <option key={college._id || college.id} value={college._id || college.id}>{college.name}</option>
                       ))}
                     </select>
                   </div>
@@ -398,9 +463,9 @@ export default function UniversityAdminDashboard() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Student-Faculty Ratio</h3>
                 <div className="space-y-4">
                   {colleges.map((college) => {
-                    const ratio = (college.totalStudents / college.totalFaculty).toFixed(1);
+                    const ratio = (college.totalStudents || 0 / college.totalFaculty || 0).toFixed(1);
                     return (
-                      <div key={college.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div key={college._id || college.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <span className="text-gray-700">{college.name}</span>
                         <span className="text-2xl font-bold text-blue-600">{ratio}:1</span>
                       </div>
@@ -413,15 +478,125 @@ export default function UniversityAdminDashboard() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Programs by College</h3>
                 <div className="space-y-4">
                   {colleges.map((college) => {
-                    const collegePrograms = programs.filter(p => p.collegeId === college.id);
+                    const collegePrograms = programs.filter(p => p.collegeId === (college._id || college.id));
                     return (
-                      <div key={college.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div key={college._id || college.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <span className="text-gray-700">{college.name}</span>
                         <span className="text-2xl font-bold text-green-600">{collegePrograms.length}</span>
                       </div>
                     );
                   })}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'collegeAdmins' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-900">College Admin Management</h2>
+              <button
+                onClick={() => setShowAddCollegeAdmin(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Add College Admin
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {collegeAdmins.map((admin) => (
+                <div key={admin._id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900">{admin.name}</h3>
+                  <p className="text-sm text-gray-600">{admin.email}</p>
+                  <p className="text-sm text-gray-600">College: {colleges.find((c) => (c._id || c.id) === String(admin.collegeId))?.name || 'N/A'}</p>
+                </div>
+              ))}
+            </div>
+
+            {showAddCollegeAdmin && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-xl p-6 max-w-md w-full">
+                  <h3 className="text-xl font-semibold mb-4">Add New College Admin</h3>
+                  <div className="space-y-4">
+                    <input
+                      type="text"
+                      placeholder="Name"
+                      value={newCollegeAdmin.name}
+                      onChange={(e) => setNewCollegeAdmin({ ...newCollegeAdmin, name: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={newCollegeAdmin.email}
+                      onChange={(e) => setNewCollegeAdmin({ ...newCollegeAdmin, email: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <select
+                      value={newCollegeAdmin.collegeId}
+                      onChange={(e) => setNewCollegeAdmin({ ...newCollegeAdmin, collegeId: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select College</option>
+                      {colleges.map((college) => (
+                        <option key={college._id || college.id} value={college._id || college.id}>{college.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex space-x-3 mt-6">
+                    <button
+                      onClick={handleAddCollegeAdmin}
+                      className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                    >
+                      Create
+                    </button>
+                    <button
+                      onClick={() => setShowAddCollegeAdmin(false)}
+                      className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-gray-900">Profile Settings</h2>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 max-w-md">
+              <h3 className="text-lg font-semibold mb-4">Change Password</h3>
+              <div className="space-y-4">
+                <input
+                  type="password"
+                  placeholder="Current Password"
+                  value={passwordData.oldPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="password"
+                  placeholder="New Password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm New Password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleChangePassword}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Change Password
+                </button>
               </div>
             </div>
           </div>

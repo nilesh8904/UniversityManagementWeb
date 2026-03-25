@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const bcrypt = require('bcryptjs');
+const path = require('path');
+const dns = require("dns");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
+
+// Load .env from backend directory
+dotenv.config({ path: path.join(__dirname, '.env') });
+
 const User = require('./models/User');
 const College = require('./models/College');
 const Program = require('./models/Program');
@@ -10,8 +16,6 @@ const Assignment = require('./models/Assignment');
 const Result = require('./models/Result');
 const Material = require('./models/Material');
 const Timetable = require('./models/Timetable');
-
-dotenv.config();
 
 // Connect to MongoDB with better timeout settings
 const connectDB = async () => {
