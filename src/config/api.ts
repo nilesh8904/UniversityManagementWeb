@@ -1,6 +1,6 @@
 // Backend API Configuration
-// Change this to your Render backend URL after deployment
-export const API_URL = 'http://localhost:5000';
+// Using Render backend URL for production
+export const API_URL = process.env.REACT_APP_API_URL || 'https://university-management-k0ri.onrender.com';
 
 // Helper function to get auth headers
 export const getAuthHeaders = () => {
