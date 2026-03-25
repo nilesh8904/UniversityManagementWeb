@@ -37,8 +37,7 @@ const programSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Index for better query performance
-programSchema.index({ code: 1 });
+// Index for better query performance (code: 1 removed - automatically indexed by unique: true)
 programSchema.index({ college: 1 });
 programSchema.index({ department: 1 });
 

@@ -49,8 +49,7 @@ const courseSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Index for better query performance
-courseSchema.index({ code: 1 });
+// Index for better query performance (code: 1 removed - automatically indexed by unique: true)
 courseSchema.index({ college: 1 });
 courseSchema.index({ faculty: 1 });
 courseSchema.index({ semester: 1 });

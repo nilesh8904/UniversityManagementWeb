@@ -78,8 +78,7 @@ userSchema.methods.comparePassword = function (candidatePassword) {
   return result;
 };
 
-// Indexes
-userSchema.index({ email: 1 });
+// Indexes (email: 1 removed - automatically indexed by unique: true)
 userSchema.index({ role: 1 });
 userSchema.index({ collegeId: 1 });
 
