@@ -29,18 +29,33 @@ export const apiRequest = async (
   const options: RequestInit = {
     method,
     headers: getAuthHeaders(),
+    credentials: 'include', // Include cookies for CORS requests
   };
 
   if (body && method !== 'GET') {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(url, options);
-  const data = await response.json();
+  try {
+    const response = await fetch(url, options);
+    const data = await response.json();
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Something went wrong');
+    if (!response.ok) {
+      console.error('API Error:', {
+        status: response.status,
+        message: data.message,
+        endpoint: endpoint,
+      });
+      throw new Error(data.message || `API Error: ${response.status}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Request failed:', {
+      endpoint: endpoint,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      apiUrl: API_URL,
+    });
+    throw error;
   }
-
-  return data;
 };
