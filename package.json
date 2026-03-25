@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "install:backend": "cd backend && npm install && cd ..",
     "build:all": "npm install && npm run install:backend && npm run build",
-    "start": "node index.js"
+    "start": "node index.cjs"
   },
   "dependencies": {
     "clsx": "2.1.1",
