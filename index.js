@@ -1,10 +1,11 @@
 require('dotenv').config();
-console.log("MONGODB_URI:", process.env.MONGODB_URI);
-const dns = require("dns");
-dns.setServers(["1.1.1.1", "8.8.8.8"]);
+const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
+const dns = require("dns");
 
+// Configure DNS
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 const app = express();
 
@@ -45,8 +46,8 @@ let mongoConnected = false;
 const connectMongoDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 30000, // 30 seconds for server selection
-      socketTimeoutMS: 45000, // 45 seconds for socket operations
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
       retryWrites: true,
       w: 'majority',
     });
@@ -58,18 +59,18 @@ const connectMongoDB = async () => {
     console.error('❌ MongoDB Connection Error:', err.message);
     console.log('⏳ Retrying in 10 seconds...');
     mongoConnected = false;
-    setTimeout(connectMongoDB, 10000); // Retry after 10 seconds
+    setTimeout(connectMongoDB, 10000);
   }
 };
 
 connectMongoDB();
 
-// ================= ROUTES =================
-app.use('/auth', require('./routes/auth'));
-app.use('/university', require('./routes/university'));
-app.use('/college', require('./routes/college'));
-app.use('/student', require('./routes/student'));
-app.use('/upload', require('./routes/upload'));
+// ================= API ROUTES =================
+app.use('/auth', require('./backend/routes/auth'));
+app.use('/university', require('./backend/routes/university'));
+app.use('/college', require('./backend/routes/college'));
+app.use('/student', require('./backend/routes/student'));
+app.use('/upload', require('./backend/routes/upload'));
 
 // ================= HEALTH CHECK =================
 app.get('/health', (req, res) => {
@@ -79,6 +80,16 @@ app.get('/health', (req, res) => {
       ? 'Server running with MongoDB ✅' 
       : 'Server running but MongoDB not connected ❌'
   });
+});
+
+// ================= SERVE FRONTEND STATIC FILES =================
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
+
+// ================= SPA FALLBACK =================
+// For any route not matched by API routes, serve index.html (for React Router)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // ================= ERROR HANDLER =================

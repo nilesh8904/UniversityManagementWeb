@@ -10,14 +10,25 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "install:backend": "cd backend && npm install && cd ..",
+    "build:all": "npm install && npm run install:backend && npm run build",
+    "start": "node index.js"
   },
   "dependencies": {
     "clsx": "2.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "mongoose": "^8.4.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-router-dom": "^7.13.1",
-    "tailwind-merge": "3.4.0"
+    "tailwind-merge": "3.4.0",
+    "cloudinary": "^1.41.0",
+    "multer": "^1.4.5-lts.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.1.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.17",
