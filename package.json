@@ -2,7 +2,6 @@
   "name": "react-vite-tailwind",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
@@ -11,8 +10,6 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "install:backend": "cd backend && npm install && cd ..",
-    "build:all": "npm install && npm run install:backend && npm run build",
     "start": "node index.cjs"
   },
   "dependencies": {

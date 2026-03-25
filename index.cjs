@@ -4,6 +4,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dns = require("dns");
 
+console.log('🚀 Starting server...');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('MONGODB_URI:', process.env.MONGODB_URI ? '✅ Set' : '❌ Not set');
+
 // Configure DNS
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
@@ -44,6 +48,11 @@ app.use(express.urlencoded({ extended: true }));
 let mongoConnected = false;
 
 const connectMongoDB = async () => {
+  if (!process.env.MONGODB_URI) {
+    console.error('❌ MONGODB_URI environment variable is not set');
+    return;
+  }
+
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 30000,
@@ -66,11 +75,16 @@ const connectMongoDB = async () => {
 connectMongoDB();
 
 // ================= API ROUTES =================
-app.use('/auth', require('./backend/routes/auth'));
-app.use('/university', require('./backend/routes/university'));
-app.use('/college', require('./backend/routes/college'));
-app.use('/student', require('./backend/routes/student'));
-app.use('/upload', require('./backend/routes/upload'));
+try {
+  app.use('/auth', require('./backend/routes/auth'));
+  app.use('/university', require('./backend/routes/university'));
+  app.use('/college', require('./backend/routes/college'));
+  app.use('/student', require('./backend/routes/student'));
+  app.use('/upload', require('./backend/routes/upload'));
+  console.log('✅ All routes loaded successfully');
+} catch (err) {
+  console.error('❌ Error loading routes:', err.message);
+}
 
 // ================= HEALTH CHECK =================
 app.get('/health', (req, res) => {
@@ -106,5 +120,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`📍 http://localhost:${PORT}`);
 });

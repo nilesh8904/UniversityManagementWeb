@@ -3,10 +3,5 @@ services:
     name: university-management
     runtime: node
     plan: free
-    buildCommand: npm run build:all
+    buildCommand: npm install && npm run build
     startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NPM_DEFAULT_PRODUCTION
-        value: false
