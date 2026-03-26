@@ -23,6 +23,8 @@ export default function StudentDashboard() {
 
   const [materials, setMaterials] = useState<any[]>([]);
 
+  const [timetable, setTimetable] = useState<Timetable[]>([]);
+
   const [results] = useState<Result[]>([
     { id: 'r1', studentId: 'STU001', courseId: 'c1', examType: 'Midterm', marks: 42, maxMarks: 50, grade: 'A', semester: 3 },
     { id: 'r2', studentId: 'STU001', courseId: 'c2', examType: 'Midterm', marks: 38, maxMarks: 50, grade: 'B+', semester: 5 },

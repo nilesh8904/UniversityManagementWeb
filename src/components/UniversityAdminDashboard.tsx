@@ -40,14 +40,30 @@ export default function UniversityAdminDashboard() {
     loadData();
   }, []);
 
-  const handleAddCollege = () => {
-    if (newCollege.name && newCollege.code) {
-      setColleges([...colleges, { ...newCollege, id: `col${colleges.length + 1}`, totalStudents: 0, totalFaculty: 0 }]);
+  const handleAddCollege = async () => {
+    if (!newCollege.name || !newCollege.code || !newCollege.address || !newCollege.dean) {
+      alert('Please fill in all college details');
+      return;
+    }
+
+    try {
+      const createdCollege = await authService.createCollege({
+        name: newCollege.name,
+        code: newCollege.code,
+        address: newCollege.address,
+        dean: newCollege.dean,
+        establishedYear: newCollege.establishedYear,
+      });
+
+      setColleges([...colleges, { ...createdCollege, totalStudents: createdCollege.totalStudents || 0, totalFaculty: createdCollege.totalFaculty || 0 }]);
       setNewCollege({ name: '', code: '', address: '', establishedYear: 2024, dean: '' });
       setShowAddCollege(false);
+      alert('College created successfully in database');
+    } catch (error: any) {
+      console.error('Unable to create college:', error);
+      alert(error?.message || 'Failed to create college');
     }
   };
-
   const handleAddCollegeAdmin = async () => {
     if (!newCollegeAdmin.name || !newCollegeAdmin.email || !newCollegeAdmin.collegeId) {
       alert('Please provide name, email and college');

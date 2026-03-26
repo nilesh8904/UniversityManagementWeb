@@ -2,9 +2,26 @@ const dns = require("dns");
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const College = require('../models/College');
 const { protect } = require('../middleware/auth');
+
+const normalizeCollegeId = async (rawCollegeId) => {
+  if (!rawCollegeId) return null;
+
+  if (mongoose.Types.ObjectId.isValid(rawCollegeId)) {
+    const byId = await College.findById(rawCollegeId);
+    if (byId) return byId._id;
+  }
+
+  const normalized = rawCollegeId.toString().trim().toUpperCase();
+  const byCode = await College.findOne({ code: normalized });
+  if (byCode) return byCode._id;
+
+  return null;
+};
 
 // ================= GENERATE TOKEN =================
 const generateToken = (id) => {
@@ -49,6 +66,18 @@ router.post('/register', async (req, res) => {
         success: false,
         message: 'User already exists',
       });
+    }
+
+    // Normalize/validate collegeId if provided
+    if (collegeId) {
+      const resolvedCollegeId = await normalizeCollegeId(collegeId);
+      if (!resolvedCollegeId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid collegeId. Use a valid ObjectId or college code.',
+        });
+      }
+      collegeId = resolvedCollegeId;
     }
 
     // ✅ Create user (password auto hashed via model)

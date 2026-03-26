@@ -120,13 +120,24 @@ export interface Result {
 }
 
 export interface Timetable {
-  id: string;
-  courseId: string;
+  _id?: string;
+  id?: string;
+  course?: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  courseId?: string;
   day: string;
   startTime: string;
   endTime: string;
   room: string;
-  facultyId: string;
+  faculty?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  facultyId?: string;
 }
 
 export interface Notification {
