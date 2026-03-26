@@ -190,18 +190,26 @@ router.post('/materials', async (req, res) => {
       });
     }
 
-    // Validate courseId is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+    // Find course by ID, code, or name
+    let course;
+    if (mongoose.Types.ObjectId.isValid(courseId)) {
+      course = await Course.findById(courseId);
+    } else {
+      // Try to find by code or name
+      course = await Course.findOne({ $or: [{ code: courseId }, { name: courseId }] });
+    }
+
+    if (!course) {
       return res.status(400).json({
         success: false,
-        message: `Invalid courseId: "${courseId}". Must be a valid MongoDB ObjectId.`,
+        message: `Invalid courseId: "${courseId}". Course not found.`,
       });
     }
 
     const material = await Material.create({
       title,
       description,
-      course: courseId,
+      course: course._id,
       college: req.user.collegeId,
       uploadedBy: req.user._id,
       type: type || 'video',
