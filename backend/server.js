@@ -17,7 +17,7 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     // allow all localhost origins (any port)
-    if (origin.startsWith('http://localhost:')) {
+    if (origin.startsWith('https://universitymanagementweb.onrender.com')) {
       return callback(null, true);
     }
 
