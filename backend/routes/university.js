@@ -61,11 +61,19 @@ router.get('/colleges', async (req, res) => {
   try {
     const colleges = await College.find().sort({ createdAt: -1 });
 
-    // Map the data to match frontend expectations
-    const mappedColleges = colleges.map(college => ({
-      ...college.toObject(),
-      totalStudents: college.studentCount || 0,
-      totalFaculty: college.facultyCount || 0,
+    // Calculate student/faculty counts from actual users so dashboard stays accurate
+    const mappedColleges = await Promise.all(colleges.map(async (college) => {
+      const studentCount = await User.countDocuments({ collegeId: college._id, role: 'student' });
+      const facultyCount = await User.countDocuments({ collegeId: college._id, role: 'college_admin' });
+
+      // Keep existing stored counts in sync (optional)
+      await College.findByIdAndUpdate(college._id, { studentCount, facultyCount }, { new: true });
+
+      return {
+        ...college.toObject(),
+        totalStudents: studentCount,
+        totalFaculty: facultyCount,
+      };
     }));
 
     res.json({
