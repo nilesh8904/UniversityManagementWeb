@@ -484,7 +484,7 @@ router.post('/timetable', async (req, res) => {
     const collegeId = req.user.collegeId;
     
     // Validate required fields
-    const requiredFields = ['course', 'faculty', 'day', 'startTime', 'endTime', 'room', 'semester'];
+    const requiredFields = ['course', 'faculty', 'day', 'startTime', 'endTime', 'room'];
     const missingFields = requiredFields.filter(field => !req.body[field]);
     
     if (missingFields.length > 0) {
