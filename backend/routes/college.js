@@ -482,6 +482,18 @@ router.get('/timetable', async (req, res) => {
 router.post('/timetable', async (req, res) => {
   try {
     const collegeId = req.user.collegeId;
+    
+    // Validate required fields
+    const requiredFields = ['course', 'faculty', 'day', 'startTime', 'endTime', 'room', 'semester'];
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+      });
+    }
+    
     const timetableData = { ...req.body, college: collegeId };
 
     const timetable = await Timetable.create(timetableData);
