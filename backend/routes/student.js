@@ -396,11 +396,12 @@ router.get('/faculty', async (req, res) => {
     console.log('\n=== FACULTY DEBUG ===');
     console.log('🏫 Student College:', studentCollege);
 
+    // Return all users in the same college that have faculty profile details
     const faculty = await User.find({
-      role: 'college_admin',
-      collegeId: studentCollege
+      collegeId: studentCollege,
+      facultyInfo: { $exists: true, $ne: {} }
     })
-      .select('name email facultyInfo')
+      .select('name email facultyInfo role')
       .sort({ name: 1 });
 
     console.log(`✅ Found ${faculty.length} faculty members`);
