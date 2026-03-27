@@ -295,28 +295,80 @@ router.get('/materials', async (req, res) => {
     const studentId = req.user._id;
     const { courseId } = req.query;
 
-    // Get enrolled courses
-    let query = {};
-    if (courseId) {
-      query.course = courseId;
+    console.log('📚 Materials request - studentId:', studentId, 'courseId:', courseId || 'ALL');
+
+    let materials = [];
+
+    if (courseId && courseId !== 'all') {
+      // Filter by specific course
+      console.log('🔍 Fetching materials for specific course:', courseId);
+      materials = await Material.find({ course: courseId })
+        .populate('course', 'name code')
+        .populate('uploadedBy', 'name email')
+        .sort({ createdAt: -1 });
+      console.log(`✅ Found ${materials.length} materials for course ${courseId}`);
     } else {
+      // Get all enrolled courses
       const studentCourses = await Course.find({
         enrolledStudents: studentId,
-      }).select('_id');
+      }).select('_id name code');
+      
       const courseIds = studentCourses.map((course) => course._id);
-      query.course = { $in: courseIds };
+      console.log('👤 Student enrolled in', studentCourses.length, 'courses');
+      console.log('📋 Enrolled Course IDs:', courseIds.map(id => id.toString()));
+
+      if (courseIds.length === 0) {
+        console.log('⚠️ Student not enrolled in any courses');
+        return res.json({ success: true, data: [] });
+      }
+
+      // DEBUG: Get ALL materials in database with their course info
+      const allMaterials = await Material.find()
+        .populate('course', 'name code _id')
+        .select('_id title course');
+      
+      console.log(`🔍 DEBUG: Total materials in database: ${allMaterials.length}`);
+      if (allMaterials.length > 0) {
+        console.log('📋 All materials with courses:');
+        allMaterials.forEach((m) => {
+          console.log(`  - "${m.title}" → Course ID: ${m.course?._id?.toString() || 'NULL'} (${m.course?.name || 'N/A'})`);
+        });
+      }
+
+      // Get materials for enrolled courses using $in operator
+      console.log('🔎 Searching for materials with courseIds:', courseIds.map(id => id.toString()));
+      
+      materials = await Material.find({ course: { $in: courseIds } })
+        .populate('course', 'name code')
+        .populate('uploadedBy', 'name email')
+        .sort({ createdAt: -1 });
+
+      console.log(`✅ Found ${materials.length} total materials for enrolled courses`);
+      if (materials.length > 0) {
+        console.log('📊 Matching materials:');
+        materials.forEach((m, idx) => {
+          console.log(`  ${idx + 1}. "${m.title}" - Course: ${m.course?.name || 'N/A'} (ID: ${m.course?._id})`);
+        });
+      } else {
+        console.log('⚠️ No materials found matching enrolled courses');
+        console.log('🔧 Trying alternative: searching without $in operator');
+        
+        // Try direct match to debug
+        for (const courseId of courseIds) {
+          const directMatch = await Material.find({ course: courseId })
+            .populate('course', 'name code')
+            .select('_id title course');
+          console.log(`  Course ${courseId}: ${directMatch.length} materials`);
+        }
+      }
     }
-
-    const materials = await Material.find(query)
-      .populate('course', 'name code')
-      .populate('uploadedBy', 'name email')
-      .sort({ createdAt: -1 });
-
+    
     res.json({
       success: true,
       data: materials,
     });
   } catch (error) {
+    console.error('❌ Error fetching materials:', error);
     res.status(500).json({
       success: false,
       message: error.message,
