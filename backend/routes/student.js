@@ -295,73 +295,104 @@ router.get('/materials', async (req, res) => {
     const studentId = req.user._id;
     const { courseId } = req.query;
 
-    console.log('📚 Materials request - studentId:', studentId, 'courseId:', courseId || 'ALL');
+    console.log('\n=== MATERIALS DEBUG ===');
+    console.log('📚 Student ID:', studentId);
+
+    // Get student's enrolled courses
+    const enrolledCourses = await Course.find({
+      enrolledStudents: studentId,
+    }).select('_id name code college');
+    
+    const enrolledCourseIds = enrolledCourses.map(c => c._id);
+    const studentCollege = enrolledCourses[0]?.college;
+    
+    console.log('👤 Student enrolled in', enrolledCourses.length, 'courses');
+    console.log('📚 Enrolled Courses:', enrolledCourses.map(c => ({ _id: c._id.toString(), name: c.name, college: c.college })));
+    console.log('🏫 Student College:', studentCollege);
+
+    // DEBUG: Get ALL materials with full details
+    const allMaterials = await Material.find().lean();
+    console.log(`\n🔍 TOTAL MATERIALS IN DATABASE: ${allMaterials.length}`);
+    
+    if (allMaterials.length > 0) {
+      console.log('\n📋 ALL MATERIALS (with details):');
+      allMaterials.forEach((m, idx) => {
+        console.log(`  ${idx + 1}. "${m.title}"`);
+        console.log(`     - ID: ${m._id}`);
+        console.log(`     - Course: ${m.course}`);
+        console.log(`     - College: ${m.college}`);
+        console.log(`     - IsActive: ${m.isActive}`);
+        console.log(`     - URL: ${m.url?.substring(0, 50)}...`);
+      });
+    }
 
     let materials = [];
 
     if (courseId && courseId !== 'all') {
       // Filter by specific course
-      console.log('🔍 Fetching materials for specific course:', courseId);
+      console.log('\n🔍 Filtering by specific course:', courseId);
       materials = await Material.find({ course: courseId })
         .populate('course', 'name code')
         .populate('uploadedBy', 'name email')
-        .sort({ createdAt: -1 });
+        .lean();
       console.log(`✅ Found ${materials.length} materials for course ${courseId}`);
     } else {
-      // Get all enrolled courses
-      const studentCourses = await Course.find({
-        enrolledStudents: studentId,
-      }).select('_id name code');
-      
-      const courseIds = studentCourses.map((course) => course._id);
-      console.log('👤 Student enrolled in', studentCourses.length, 'courses');
-      console.log('📋 Enrolled Course IDs:', courseIds.map(id => id.toString()));
+      // Return materials for all enrolled courses
+      console.log('\n🔎 SEARCHING for materials matching enrolled courses');
+      console.log('Course IDs to match:', enrolledCourseIds.map(id => id.toString()));
 
-      if (courseIds.length === 0) {
+      if (enrolledCourseIds.length === 0) {
         console.log('⚠️ Student not enrolled in any courses');
         return res.json({ success: true, data: [] });
       }
 
-      // DEBUG: Get ALL materials in database with their course info
-      const allMaterials = await Material.find()
-        .populate('course', 'name code _id')
-        .select('_id title course');
-      
-      console.log(`🔍 DEBUG: Total materials in database: ${allMaterials.length}`);
-      if (allMaterials.length > 0) {
-        console.log('📋 All materials with courses:');
-        allMaterials.forEach((m) => {
-          console.log(`  - "${m.title}" → Course ID: ${m.course?._id?.toString() || 'NULL'} (${m.course?.name || 'N/A'})`);
-        });
-      }
-
-      // Get materials for enrolled courses using $in operator
-      console.log('🔎 Searching for materials with courseIds:', courseIds.map(id => id.toString()));
-      
-      materials = await Material.find({ course: { $in: courseIds } })
+      // TRY 1: Using $in operator
+      console.log('\n📌 TRY 1: Using $in operator with course field');
+      materials = await Material.find({ course: { $in: enrolledCourseIds } })
         .populate('course', 'name code')
         .populate('uploadedBy', 'name email')
-        .sort({ createdAt: -1 });
+        .lean();
+      
+      console.log(`Result: Found ${materials.length} materials`);
 
-      console.log(`✅ Found ${materials.length} total materials for enrolled courses`);
-      if (materials.length > 0) {
-        console.log('📊 Matching materials:');
-        materials.forEach((m, idx) => {
-          console.log(`  ${idx + 1}. "${m.title}" - Course: ${m.course?.name || 'N/A'} (ID: ${m.course?._id})`);
-        });
-      } else {
-        console.log('⚠️ No materials found matching enrolled courses');
-        console.log('🔧 Trying alternative: searching without $in operator');
+      // TRY 2: If nothing found, try without college filter
+      if (materials.length === 0) {
+        console.log('\n📌 TRY 2: Searching ALL materials (removing any college filter)');
+        materials = await Material.find({})
+          .populate('course', 'name code')
+          .populate('uploadedBy', 'name email')
+          .lean();
         
-        // Try direct match to debug
-        for (const courseId of courseIds) {
-          const directMatch = await Material.find({ course: courseId })
-            .populate('course', 'name code')
-            .select('_id title course');
-          console.log(`  Course ${courseId}: ${directMatch.length} materials`);
+        console.log(`Total materials in DB: ${materials.length}`);
+        
+        // Filter in code to find matches
+        const matchedMaterials = materials.filter(m => {
+          const courseMatch = enrolledCourseIds.some(id => id.toString() === m.course?._id?.toString());
+          return courseMatch;
+        });
+        
+        console.log(`After filtering by enrolled courses: ${matchedMaterials.length} materials`);
+        materials = matchedMaterials;
+      }
+
+      // TRY 3: Log which courses have materials
+      if (materials.length === 0) {
+        console.log('\n📌 TRY 3: Checking which courses have ANY materials');
+        for (const course of enrolledCourses) {
+          const courseMatCount = await Material.countDocuments({ course: course._id });
+          console.log(`  Course "${course.name}" (${course._id}): ${courseMatCount} materials`);
         }
       }
     }
+    
+    console.log(`\n✅ FINAL RESULT: ${materials.length} materials to return`);
+    if (materials.length > 0) {
+      console.log('📊 Materials being returned:');
+      materials.forEach((m, idx) => {
+        console.log(`  ${idx + 1}. "${m.title}" - Course: ${m.course?.name || 'UNKNOWN'}`);
+      });
+    }
+    console.log('=== END DEBUG ===\n');
     
     res.json({
       success: true,
