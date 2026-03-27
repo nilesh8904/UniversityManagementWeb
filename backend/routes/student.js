@@ -296,22 +296,29 @@ router.get('/materials', async (req, res) => {
     const { courseId } = req.query;
 
     console.log('\n=== MATERIALS DEBUG ===');
-    console.log('📚 Student ID:', studentId);
+    console.log('📚 Student ID:', studentId.toString());
 
-    // Get student's enrolled courses
+    // Get student's enrolled courses AND their college
     const enrolledCourses = await Course.find({
       enrolledStudents: studentId,
     }).select('_id name code college');
     
     const enrolledCourseIds = enrolledCourses.map(c => c._id);
-    const studentCollege = enrolledCourses[0]?.college;
+    const studentColleges = [...new Set(enrolledCourses.map(c => c.college?.toString()))];
     
     console.log('👤 Student enrolled in', enrolledCourses.length, 'courses');
-    console.log('📚 Enrolled Courses:', enrolledCourses.map(c => ({ _id: c._id.toString(), name: c.name, college: c.college })));
-    console.log('🏫 Student College:', studentCollege);
+    console.log('📚 Enrolled Courses:');
+    enrolledCourses.forEach(c => {
+      console.log(`   - "${c.name}" (ID: ${c._id.toString()}) | College: ${c.college?.toString()}`);
+    });
+    console.log('🏫 Student Colleges:', studentColleges);
 
     // DEBUG: Get ALL materials with full details
-    const allMaterials = await Material.find().lean();
+    const allMaterials = await Material.find()
+      .populate('course', 'name code _id')
+      .populate('college', 'name _id')
+      .lean();
+    
     console.log(`\n🔍 TOTAL MATERIALS IN DATABASE: ${allMaterials.length}`);
     
     if (allMaterials.length > 0) {
@@ -319,10 +326,9 @@ router.get('/materials', async (req, res) => {
       allMaterials.forEach((m, idx) => {
         console.log(`  ${idx + 1}. "${m.title}"`);
         console.log(`     - ID: ${m._id}`);
-        console.log(`     - Course: ${m.course}`);
-        console.log(`     - College: ${m.college}`);
+        console.log(`     - Course: ${m.course?.name || 'NULL'} (${m.course?._id})`);
+        console.log(`     - College: ${m.college?.name || 'NULL'} (${m.college?._id})`);
         console.log(`     - IsActive: ${m.isActive}`);
-        console.log(`     - URL: ${m.url?.substring(0, 50)}...`);
       });
     }
 
@@ -334,64 +340,72 @@ router.get('/materials', async (req, res) => {
       materials = await Material.find({ course: courseId })
         .populate('course', 'name code')
         .populate('uploadedBy', 'name email')
+        .sort({ createdAt: -1 })
         .lean();
       console.log(`✅ Found ${materials.length} materials for course ${courseId}`);
     } else {
-      // Return materials for all enrolled courses
-      console.log('\n🔎 SEARCHING for materials matching enrolled courses');
+      // Return materials for all enrolled courses AND student's college
+      console.log('\n🔎 SEARCHING materials for enrolled courses in student colleges');
       console.log('Course IDs to match:', enrolledCourseIds.map(id => id.toString()));
+      console.log('College IDs to match:', studentColleges);
 
       if (enrolledCourseIds.length === 0) {
         console.log('⚠️ Student not enrolled in any courses');
         return res.json({ success: true, data: [] });
       }
 
-      // TRY 1: Using $in operator
-      console.log('\n📌 TRY 1: Using $in operator with course field');
-      materials = await Material.find({ course: { $in: enrolledCourseIds } })
+      // Query: materials that match enrolled courses AND are in student's college
+      console.log('\n📌 Query: Finding materials with course IN enrolled courses');
+      materials = await Material.find({ 
+        course: { $in: enrolledCourseIds },
+        // Also ensure it's from the student's college(s)
+        college: { $in: enrolledCourses.map(c => c.college) }
+      })
         .populate('course', 'name code')
         .populate('uploadedBy', 'name email')
+        .sort({ createdAt: -1 })
         .lean();
-      
-      console.log(`Result: Found ${materials.length} materials`);
 
-      // TRY 2: If nothing found, try without college filter
-      if (materials.length === 0) {
-        console.log('\n📌 TRY 2: Searching ALL materials (removing any college filter)');
-        materials = await Material.find({})
-          .populate('course', 'name code')
-          .populate('uploadedBy', 'name email')
-          .lean();
-        
-        console.log(`Total materials in DB: ${materials.length}`);
-        
-        // Filter in code to find matches
-        const matchedMaterials = materials.filter(m => {
-          const courseMatch = enrolledCourseIds.some(id => id.toString() === m.course?._id?.toString());
-          return courseMatch;
+      console.log(`Result: Found ${materials.length} materials matching enrolled courses and college`);
+
+      // DEBUG: Show what matches
+      if (materials.length > 0) {
+        console.log('\n📊 Matching materials:');
+        materials.forEach((m, idx) => {
+          console.log(`  ${idx + 1}. "${m.title}" - Course: ${m.course?.name || 'NULL'}`);
         });
+      } else {
+        console.log('\n⚠️ No materials found with current filters');
+        console.log('🔧 Debugging: Checking materials by course');
         
-        console.log(`After filtering by enrolled courses: ${matchedMaterials.length} materials`);
-        materials = matchedMaterials;
-      }
-
-      // TRY 3: Log which courses have materials
-      if (materials.length === 0) {
-        console.log('\n📌 TRY 3: Checking which courses have ANY materials');
+        // Check materials for each enrolled course
         for (const course of enrolledCourses) {
           const courseMatCount = await Material.countDocuments({ course: course._id });
-          console.log(`  Course "${course.name}" (${course._id}): ${courseMatCount} materials`);
+          const courseMatCountWithCollege = await Material.countDocuments({ 
+            course: course._id,
+            college: course.college
+          });
+          console.log(`  Course "${course.name}" (${course._id}):`);
+          console.log(`    - Total materials: ${courseMatCount}`);
+          console.log(`    - With matching college: ${courseMatCountWithCollege}`);
+        }
+
+        // Also check if there are materials for these courses but different college
+        const materialsWrongCollege = await Material.find({
+          course: { $in: enrolledCourseIds },
+          college: { $nin: enrolledCourses.map(c => c.college) }
+        }).select('_id title course college');
+        
+        if (materialsWrongCollege.length > 0) {
+          console.log(`\n⚠️ Found ${materialsWrongCollege.length} materials for enrolled courses but WRONG college:`);
+          materialsWrongCollege.forEach((m, idx) => {
+            console.log(`  ${idx + 1}. "${m.title}" - College: ${m.college}`);
+          });
         }
       }
     }
     
     console.log(`\n✅ FINAL RESULT: ${materials.length} materials to return`);
-    if (materials.length > 0) {
-      console.log('📊 Materials being returned:');
-      materials.forEach((m, idx) => {
-        console.log(`  ${idx + 1}. "${m.title}" - Course: ${m.course?.name || 'UNKNOWN'}`);
-      });
-    }
     console.log('=== END DEBUG ===\n');
     
     res.json({
