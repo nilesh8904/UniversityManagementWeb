@@ -386,4 +386,49 @@ router.get('/materials', async (req, res) => {
   }
 });
 
+// @route   GET /api/student/faculty
+// @desc    Get all faculty members for student's college
+// @access  Private (Student)
+router.get('/faculty', async (req, res) => {
+  try {
+    const studentCollege = req.user.collegeId;
+
+    console.log('\n=== FACULTY DEBUG ===');
+    console.log('🏫 Student College:', studentCollege);
+
+    const faculty = await User.find({
+      role: 'college_admin',
+      collegeId: studentCollege
+    })
+      .select('name email facultyInfo')
+      .sort({ name: 1 });
+
+    console.log(`✅ Found ${faculty.length} faculty members`);
+    
+    if (faculty.length > 0) {
+      console.log('\n📊 Faculty members:');
+      faculty.forEach((f, idx) => {
+        console.log(`${idx + 1}. ${f.name} (${f.email})`);
+        if (f.facultyInfo) {
+          console.log(`   Department: ${f.facultyInfo.department || 'N/A'}`);
+          console.log(`   Specialization: ${f.facultyInfo.specialization || 'N/A'}`);
+        }
+      });
+    }
+    
+    console.log('=== END FACULTY DEBUG ===\n');
+
+    res.json({
+      success: true,
+      data: faculty,
+    });
+  } catch (error) {
+    console.error('❌ Error fetching faculty:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 module.exports = router;
