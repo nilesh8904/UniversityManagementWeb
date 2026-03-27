@@ -61,9 +61,16 @@ router.get('/colleges', async (req, res) => {
   try {
     const colleges = await College.find().sort({ createdAt: -1 });
 
+    // Map the data to match frontend expectations
+    const mappedColleges = colleges.map(college => ({
+      ...college.toObject(),
+      totalStudents: college.studentCount || 0,
+      totalFaculty: college.facultyCount || 0,
+    }));
+
     res.json({
       success: true,
-      data: colleges,
+      data: mappedColleges,
     });
   } catch (error) {
     res.status(500).json({
