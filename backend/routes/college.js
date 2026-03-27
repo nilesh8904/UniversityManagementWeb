@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { protect, authorize } = require('../middleware/auth');
+const College = require('../models/College');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const Timetable = require('../models/Timetable');
@@ -385,6 +386,9 @@ router.post('/faculty', async (req, res) => {
       facultyInfo,
     });
 
+    // Update faculty count in college
+    await College.findByIdAndUpdate(collegeId, { $inc: { facultyCount: 1 } });
+
     res.status(201).json({
       success: true,
       data: faculty,
@@ -438,6 +442,9 @@ router.post('/students', async (req, res) => {
       collegeId,
       studentInfo,
     });
+
+    // Update student count in college
+    await College.findByIdAndUpdate(collegeId, { $inc: { studentCount: 1 } });
 
     res.status(201).json({ success: true, data: student });
   } catch (error) {
