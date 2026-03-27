@@ -288,117 +288,59 @@ router.get('/timetable', async (req, res) => {
 });
 
 // @route   GET /api/student/materials
-// @desc    Get course materials
+// @desc    Get course materials for student's college
 // @access  Private (Student)
 router.get('/materials', async (req, res) => {
   try {
     const studentId = req.user._id;
+    const studentCollege = req.user.collegeId;
     const { courseId } = req.query;
 
     console.log('\n=== MATERIALS DEBUG ===');
     console.log('📚 Student ID:', studentId.toString());
-
-    // Get student's enrolled courses AND their college
-    const enrolledCourses = await Course.find({
-      enrolledStudents: studentId,
-    }).select('_id name code college');
-    
-    const enrolledCourseIds = enrolledCourses.map(c => c._id);
-    const studentColleges = [...new Set(enrolledCourses.map(c => c.college?.toString()))];
-    
-    console.log('👤 Student enrolled in', enrolledCourses.length, 'courses');
-    console.log('📚 Enrolled Courses:');
-    enrolledCourses.forEach(c => {
-      console.log(`   - "${c.name}" (ID: ${c._id.toString()}) | College: ${c.college?.toString()}`);
-    });
-    console.log('🏫 Student Colleges:', studentColleges);
-
-    // DEBUG: Get ALL materials with full details
-    const allMaterials = await Material.find()
-      .populate('course', 'name code _id')
-      .populate('college', 'name _id')
-      .lean();
-    
-    console.log(`\n🔍 TOTAL MATERIALS IN DATABASE: ${allMaterials.length}`);
-    
-    if (allMaterials.length > 0) {
-      console.log('\n📋 ALL MATERIALS (with details):');
-      allMaterials.forEach((m, idx) => {
-        console.log(`  ${idx + 1}. "${m.title}"`);
-        console.log(`     - ID: ${m._id}`);
-        console.log(`     - Course: ${m.course?.name || 'NULL'} (${m.course?._id})`);
-        console.log(`     - College: ${m.college?.name || 'NULL'} (${m.college?._id})`);
-        console.log(`     - IsActive: ${m.isActive}`);
-      });
-    }
+    console.log('🏫 Student College:', studentCollege);
 
     let materials = [];
 
     if (courseId && courseId !== 'all') {
       // Filter by specific course
       console.log('\n🔍 Filtering by specific course:', courseId);
-      materials = await Material.find({ course: courseId })
+      materials = await Material.find({ 
+        course: courseId,
+        college: studentCollege  // Ensure it's from same college
+      })
         .populate('course', 'name code')
         .populate('uploadedBy', 'name email')
         .sort({ createdAt: -1 })
         .lean();
       console.log(`✅ Found ${materials.length} materials for course ${courseId}`);
     } else {
-      // Return materials for all enrolled courses AND student's college
-      console.log('\n🔎 SEARCHING materials for enrolled courses in student colleges');
-      console.log('Course IDs to match:', enrolledCourseIds.map(id => id.toString()));
-      console.log('College IDs to match:', studentColleges);
-
-      if (enrolledCourseIds.length === 0) {
-        console.log('⚠️ Student not enrolled in any courses');
-        return res.json({ success: true, data: [] });
-      }
-
-      // Query: materials that match enrolled courses (WITHOUT college restriction)
-      // This ensures we get all materials from courses the student is enrolled in
-      console.log('\n📌 Query: Finding materials with course IN enrolled courses');
+      // Get ALL materials from student's college (like college admin sees)
+      // This ensures students see all materials available in their college
+      console.log('\n🔎 SEARCHING for all materials in student college');
+      
       materials = await Material.find({ 
-        course: { $in: enrolledCourseIds }
+        college: studentCollege
       })
         .populate('course', 'name code')
         .populate('uploadedBy', 'name email')
         .sort({ createdAt: -1 })
         .lean();
 
-      console.log(`Result: Found ${materials.length} materials matching enrolled courses`);
-
-      // DEBUG: Show what matches
+      console.log(`✅ Found ${materials.length} total materials in college`);
+      
       if (materials.length > 0) {
-        console.log('\n📊 Matching materials:');
-        materials.forEach((m, idx) => {
-          console.log(`  ${idx + 1}. "${m.title}" - Course: ${m.course?.name || 'NULL'}`);
-        });
-      } else {
-        console.log('\n⚠️ No materials found matching enrolled courses');
-        console.log('🔧 Debugging: Checking materials by course');
-        
-        // Check materials for each enrolled course
-        for (const course of enrolledCourses) {
-          const courseMatCount = await Material.countDocuments({ course: course._id });
-          console.log(`  Course "${course.name}" (${course._id}): ${courseMatCount} materials`);
-        }
-
-        // Show ALL materials for reference
-        console.log(`\n📋 ALL ${allMaterials.length} materials in database by course:`);
+        console.log('\n📊 Materials breakdown:');
         const courseGroups = {};
-        allMaterials.forEach(m => {
-          const courseKey = m.course?._id?.toString() || 'UNLINKED';
-          if (!courseGroups[courseKey]) courseGroups[courseKey] = [];
-          courseGroups[courseKey].push(m);
+        materials.forEach(m => {
+          const courseName = m.course?.name || 'Unknown Course';
+          if (!courseGroups[courseName]) courseGroups[courseName] = [];
+          courseGroups[courseName].push(m.title);
         });
         
-        Object.entries(courseGroups).forEach(([courseId, mats]) => {
-          const matchingCourse = enrolledCourses.find(c => c._id.toString() === courseId);
-          const courseName = matchingCourse?.name || `Unknown Course (${courseId})`;
-          console.log(`  ${courseName}: ${mats.length} materials`);
-          mats.forEach((m, idx) => {
-            console.log(`    ${idx + 1}. "${m.title}"`);
-          });
+        Object.entries(courseGroups).forEach(([course, titles]) => {
+          console.log(`  ${course}: ${titles.length} materials`);
+          titles.forEach(t => console.log(`    - "${t}"`));
         });
       }
     }
