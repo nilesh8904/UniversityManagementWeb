@@ -270,10 +270,35 @@ router.get('/timetable', async (req, res) => {
     const studentCourses = await Course.find({ enrolledStudents: studentId }).select('_id');
     const courseIds = studentCourses.map((course) => course._id);
 
+    console.log('\n=== TIMETABLE DEBUG ===');
+    console.log('👤 Student ID:', studentId.toString());
+    console.log('📚 Enrolled course IDs:', courseIds.map(id => id.toString()));
+
     const timetable = await Timetable.find({ course: { $in: courseIds } })
       .populate('course', 'name code')
       .populate('faculty', 'name email')
       .sort({ day: 1, startTime: 1 });
+
+    console.log(`📅 Found ${timetable.length} timetable entries`);
+    
+    if (timetable.length > 0) {
+      console.log('\n📊 Timetable entries:');
+      timetable.forEach((entry, idx) => {
+        console.log(`${idx + 1}. Course: ${entry.course?.name || 'N/A'} (${entry.course?._id || 'N/A'})`);
+        console.log(`   Faculty: ${entry.faculty?.name || 'N/A'} (${entry.faculty?._id || 'N/A'})`);
+        console.log(`   Day: ${entry.day}, Time: ${entry.startTime}-${entry.endTime}, Room: ${entry.room}`);
+      });
+      
+      // Check for duplicates
+      const ids = timetable.map(t => t._id.toString());
+      const uniqueIds = [...new Set(ids)];
+      if (ids.length !== uniqueIds.length) {
+        console.warn('⚠️ Duplicate timetable entries in database!');
+        console.log('Total entries:', ids.length, 'Unique IDs:', uniqueIds.length);
+      }
+    }
+    
+    console.log('=== END TIMETABLE DEBUG ===\n');
 
     res.json({
       success: true,
