@@ -3,6 +3,7 @@ dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+const User = require('../models/User');
 const Course = require('../models/Course');
 const Attendance = require('../models/Attendance');
 const Assignment = require('../models/Assignment');
