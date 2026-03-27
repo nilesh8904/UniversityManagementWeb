@@ -152,6 +152,112 @@ router.delete('/courses/:id', async (req, res) => {
   }
 });
 
+// @route   POST /api/college/courses/:id/enroll
+// @desc    Enroll a student in a course
+// @access  Private (College Admin)
+router.post('/courses/:id/enroll', async (req, res) => {
+  try {
+    const { studentId } = req.body;
+
+    if (!studentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'studentId is required',
+      });
+    }
+
+    const course = await Course.findById(req.params.id);
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found',
+      });
+    }
+
+    // Check if student is already enrolled
+    if (course.enrolledStudents.includes(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student is already enrolled in this course',
+      });
+    }
+
+    // Add student to enrolledStudents array
+    course.enrolledStudents.push(studentId);
+    await course.save();
+
+    res.json({
+      success: true,
+      message: 'Student enrolled successfully',
+      data: course,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// @route   DELETE /api/college/courses/:id/enroll/:studentId
+// @desc    Unenroll a student from a course
+// @access  Private (College Admin)
+router.delete('/courses/:id/enroll/:studentId', async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id);
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found',
+      });
+    }
+
+    // Remove student from enrolledStudents array
+    course.enrolledStudents = course.enrolledStudents.filter(
+      (id) => id.toString() !== req.params.studentId
+    );
+    await course.save();
+
+    res.json({
+      success: true,
+      message: 'Student unenrolled successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// @route   GET /api/college/courses/:id/students
+// @desc    Get enrolled students for a course
+// @access  Private (College Admin)
+router.get('/courses/:id/students', async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id).populate('enrolledStudents', 'name email studentInfo');
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: course.enrolledStudents,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 // MATERIALS
 // @route   GET /api/college/materials
 // @desc    Get all materials for the college
